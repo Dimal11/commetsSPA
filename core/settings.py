@@ -37,9 +37,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    "rest_framework",
-    "graphene_django",
-    "comments",
+    'rest_framework',
+    'corsheaders',
+    'channels',
+    'strawberry.django',
+    'comments',
 ]
 
 MIDDLEWARE = [
@@ -50,9 +52,14 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'core.urls'
+
+CORS_ALLOWED_ORIGINS = ['http://localhost:5173']
+
+ASGI_APPLICATION = 'config.asgi.application'
 
 TEMPLATES = [
     {
