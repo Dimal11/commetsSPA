@@ -82,13 +82,19 @@ TEMPLATES = [
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    *(o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip())
+    *(o.strip() for o in os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,https://commets-frontend-755819237934.europe-central2.run.app")
+    .split(",") if o.strip())
 ]
 CORS_ALLOW_HEADERS = ["authorization", "content-type", "x-requested-with"]
 CORS_ALLOW_METHODS = ["GET", "POST", "OPTIONS"]
 
 CSRF_TRUSTED_ORIGINS = [
-    *(o.strip() for o in os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip())
+    *(o.strip() for o in os.getenv(
+        "CSRF_TRUSTED_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,https://commets-frontend-755819237934.europe-central2.run.app")
+    .split(",") if o.strip())
 ]
 
 
