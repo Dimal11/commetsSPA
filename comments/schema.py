@@ -1,19 +1,26 @@
 from __future__ import annotations
+
+from django.core.cache import cache
+import hashlib
 from typing import Optional, List
 from datetime import datetime
 
 import strawberry
 from strawberry import ID
 from strawberry.types import Info
+from strawberry.file_uploads import Upload
+
+from enum import Enum
+
+from django.core.files.uploadedfile import UploadedFile
 
 from django.db.models import Count
-from .models import Comment, User
+from .models import Comment, User, Attachment
 
-from .utils import sanitize_comment_html
+from .utils import sanitize_comment_html, verify_captcha
 
 
 def _get_client_ip_and_ua(request):
-    # Простейшее извлечение IP/UA для записи в модели
     xff = request.META.get("HTTP_X_FORWARDED_FOR")
     if xff:
         ip = xff.split(",")[0].strip()
@@ -24,19 +31,43 @@ def _get_client_ip_and_ua(request):
 
 
 @strawberry.enum
-class OrderField:
-    AUTHOR_NAME = "author__name"
-    AUTHOR_EMAIL = "author__email"
-    CREATED_AT = "created_at"
+class OrderField(Enum):
+    CREATED_AT = "CREATED_AT"
+    AUTHOR_NAME = "AUTHOR_NAME"
+    AUTHOR_EMAIL = "AUTHOR_EMAIL"
+    USER_NAME = "USER_NAME"
+    EMAIL = "EMAIL"
+
+
+@strawberry.type
+class AttachmentType:
+    id: ID
+    url: str
+    contentType: Optional[str]
+    size: int
+    width: Optional[int]
+    height: Optional[int]
+    isImage: bool
+
+    @staticmethod
+    def from_model(a: Attachment) -> "AttachmentType":
+        return AttachmentType(
+            id=a.id,
+            url=a.file.url,
+            contentType=a.content_type or None,
+            size=a.size or 0,
+            width=a.width,
+            height=a.height,
+            isImage=a.is_image,
+        )
 
 
 @strawberry.type
 class UserType:
-    # UUID удобнее отдать как строку
     id: ID
     name: str
     email: str
-    homePage: Optional[str]
+    homePage: Optional[str] = None
 
     @staticmethod
     def from_model(u: User) -> "UserType":
@@ -54,9 +85,17 @@ class CommentType:
     author: UserType
     parentId: Optional[ID]
     textRaw: str
-    textHtml: str
+    textHtml: Optional[str] = None
     createdAt: datetime
     repliesCount: int
+
+    @strawberry.field
+    def attachments(self, info: Info) -> List[AttachmentType]:
+        try:
+            rows = Attachment.objects.filter(comment_id=self.id).order_by("id")
+            return [AttachmentType.from_model(a) for a in rows]
+        except Exception:
+            return []
 
     @staticmethod
     def from_model(c: Comment) -> "CommentType":
@@ -97,13 +136,21 @@ class Query:
 
         qs = qs.annotate(replies_count=Count("children"))
 
-        order_clause = orderField.value
-        if desc:
-            order_clause = f"-{order_clause}"
+        order_map = {
+            OrderField.CREATED_AT: "created_at",
+            OrderField.AUTHOR_NAME: "author__name",
+            OrderField.AUTHOR_EMAIL: "author__email",
+            OrderField.USER_NAME: "author__name",
+            OrderField.EMAIL: "author__email",
+        }
+        main = order_map.get(orderField, "created_at")
+        prefix = "-" if desc else ""
+        order_by = [f"{prefix}{main}", f"{prefix}id"]
 
         total = qs.count()
-        start = (page - 1) * pageSize
-        rows = list(qs.order_by(order_clause)[start : start + pageSize])
+        start = max(page, 1) - 1
+        start *= pageSize
+        rows = list(qs.order_by(*order_by)[start: start + pageSize])
 
         return CommentList(
             count=total,
@@ -111,32 +158,51 @@ class Query:
         )
 
 
+
 @strawberry.input
 class CreateCommentInput:
-    # данные автора (лежат в User)
-    userName: str
+    userName: Optional[str] = None
+    name: Optional[str] = None
     email: str
     homePage: Optional[str] = None
-    # данные комментария
     text: str
     parentId: Optional[ID] = None
+    captcha: str
+    captchaKey: Optional[str] = None
 
 
 @strawberry.type
 class Mutation:
     @strawberry.mutation
-    def createComment(self, info: Info, input: CreateCommentInput) -> CommentType:
-        # request доступен в контексте strawberry.django GraphQLView
+    def create_comment(self, info: Info, input: CreateCommentInput) -> CommentType:
         request = info.context["request"]
         ip, ua = _get_client_ip_and_ua(request)
 
-        # ВАЖНО: у тебя в моделях Comment.author = OneToOneField(User).
-        # Это означает "один пользователь -> ровно один комментарий".
-        # Поэтому создаём нового User на каждый комментарий.
-        # Если хочешь, чтобы один пользователь мог оставить много комментариев,
-        # поменяй OneToOneField на ForeignKey.
+        key = input.captchaKey or request.COOKIES.get('captcha_key')
+        # key_from_input = getattr(input, "captchaKey", None)
+        # key_from_cookie = request.COOKIES.get("captcha_key")
+        # key = key_from_input or key_from_cookie
+        # code = (input.captcha or "").strip()
+        # norm = code.lower()
+        # stored = cache.get(f"captcha:{key}")
+        #
+        # print(f"[CAPTCHA DEBUG] key_in={key_from_input} key_ck={key_from_cookie} use_key={key}")
+        # print(f"[CAPTCHA DEBUG] code='{code}' norm='{norm}' stored?={stored is not None}")
+        # if stored:
+        #     print(f"[CAPTCHA DEBUG] stored[:10]={str(stored)[:10]}")
+        #     print(f"[CAPTCHA DEBUG] match_hash={stored == hashlib.sha256(norm.encode()).hexdigest()}")
+        #     print(f"[CAPTCHA DEBUG] match_raw ={stored == norm}")
+        #
+        # breakpoint()  # ← здесь выполнение остановится в терминале
+        if not verify_captcha(key, input.captcha):
+            raise Exception("Captcha invalid or expired")
+
+        user_name = input.userName or input.name
+        if not user_name:
+            raise Exception("userName (or name) is required")
+
         user = User.objects.create(
-            name=input.userName,
+            name=user_name,
             email=input.email,
             home_page=input.homePage or "",
             ip=ip or "0.0.0.0",
@@ -153,6 +219,17 @@ class Mutation:
             user_agent=ua,
         )
         return CommentType.from_model(obj)
+
+    @strawberry.mutation
+    def upload_attachment(self, info: Info, commentId: ID, file: Upload) -> AttachmentType:
+        comment = Comment.objects.get(pk=commentId)
+        uploaded: UploadedFile = file
+
+        att = Attachment(comment=comment)
+        att.file.save(uploaded.name, uploaded, save=False)
+        att.full_clean()
+        att.save()
+        return AttachmentType.from_model(att)
 
 
 schema = strawberry.Schema(query=Query, mutation=Mutation)

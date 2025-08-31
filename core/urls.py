@@ -16,8 +16,21 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
+from django.conf.urls.static import static
+from strawberry.django.views import GraphQLView
+
+from comments.schema import schema
+from comments.views import upload_attachment_view,captcha_json, captcha_image
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path("graphql/", csrf_exempt(GraphQLView.as_view(schema=schema)), name="graphql"),
+    path("api/attachments/upload/", upload_attachment_view, name="upload-attachment"),
+    path('api/captcha/', captcha_image),
     path('api/', include('comments.urls'))
 ]
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

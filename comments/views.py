@@ -1,11 +1,18 @@
+import base64
+
+from django.http import JsonResponse, HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.db.models import Count, Prefetch
+from django.core.exceptions import ValidationError
 
-from .models import Comment
+from .models import Comment, Attachment
 from .serializers import CommentCreateSerializer
+from .utils import make_captcha
 
 class CommentPagination(PageNumberPagination):
     page_size = 25
@@ -51,3 +58,59 @@ def top_comments_list(request):
         for c in page
     ]
     return paginator.get_paginated_response(data)
+
+@csrf_exempt
+def upload_attachment_view(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Only POST allowed"}, status=405)
+
+    comment_id = request.POST.get("commentId")
+    f = request.FILES.get("file")
+    if not comment_id or not f:
+        return JsonResponse({"error": "Fields 'commentId' and 'file' are required"}, status=400)
+
+    comment = get_object_or_404(Comment, pk=comment_id)
+
+    try:
+        att = Attachment(comment=comment, file=f)
+        att.full_clean()
+        att.save()
+        return JsonResponse({
+            "id": att.id,
+            "url": att.file.url,
+            "contentType": att.content_type,
+            "isImage": att.is_image,
+            "width": att.width,
+            "height": att.height,
+            "size": att.size,
+        })
+    except ValidationError as e:
+        msgs = []
+        if hasattr(e, "message_dict"):
+            for v in e.message_dict.values():
+                msgs.extend(v if isinstance(v, (list, tuple)) else [v])
+        elif hasattr(e, "messages"):
+            msgs = list(e.messages)
+        else:
+            msgs = [str(e)]
+        return JsonResponse({"error": "; ".join(msgs) or "Validation error"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+def captcha_json(request):
+    key, img_b64 = make_captcha()
+    return JsonResponse({'image_base64': img_b64, 'key': key})
+
+def captcha_image(request):
+    key, img_b64 = make_captcha()
+    raw = img_b64.split(',', 1)[1]
+    data = base64.b64decode(raw)
+    resp = HttpResponse(data, content_type='image/png')
+    resp['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp['Pragma'] = 'no-cache'
+    resp['Expires'] = '0'
+    # если фронт на другом домене и нужны куки:
+    # resp.set_cookie('captcha_key', key, max_age=300, samesite='None', secure=True)
+    # если тот же домен:
+    resp.set_cookie('captcha_key', key, max_age=300, path='/',)
+    return resp

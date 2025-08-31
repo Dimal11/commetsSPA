@@ -1,4 +1,5 @@
 import io, os
+import mimetypes
 import uuid
 
 from django.db import models
@@ -8,13 +9,14 @@ from django.core.files.base import ContentFile
 from PIL import Image, ImageOps
 
 username_validator = RegexValidator(
-    regex=r"^[A-Za-z0-9]+$",
-    message="User Name должен содержать только латинские буквы и цифры."
+    regex=r"^[A-Za-z0-9А-Яа-яЁё _\-.']+$",
+    message="User Name должен содержать буквы (латиница/кириллица), цифры, пробелы и _-.'."
 )
 
 ALLOWED_TAGS = ["a", "code", "i", "strong"]
 ALLOWED_ATTRS = {"a": ["href", "title"]}
 
+MAX_TXT_SIZE = 100 * 1024
 MAX_IMAGE_SIZE = (320, 240)
 ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "GIF"}
 MIME_BY_FORMAT = {"JPEG": "image/jpeg", "PNG": "image/png", "GIF": "image/gif"}
@@ -38,17 +40,17 @@ def _is_text_file(file, max_bytes=100 * 1024) -> bool:
     finally:
         file.seek(pos)
 
-def _open_image(file) -> Image.Image:
+def _open_image(file):
+    """Попробовать открыть как изображение. Вернуть PIL.Image или None."""
     pos = file.tell()
     try:
         img = Image.open(file)
-        img.verify()
+        img.verify()     # проверка сигнатуры
         file.seek(pos)
-        img = Image.open(file)
-        return img
+        return Image.open(file)  # повторно открыть для работы
     except Exception:
         file.seek(pos)
-        raise ValidationError("Файл повреждён или не является поддерживаемым изображением.")
+        return None
 
 class Comment(models.Model):
     author = models.OneToOneField('comments.User', on_delete=models.CASCADE, related_name='comment')
@@ -101,8 +103,8 @@ class User(models.Model):
 class Attachment(models.Model):
     comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name="attachments")
     file = models.FileField(upload_to="attachments/%Y/%m/%d/")
-    content_type = models.CharField(max_length=100)
-    size = models.PositiveIntegerField()
+    content_type = models.CharField(max_length=100, blank=True)
+    size = models.PositiveIntegerField(null=True, blank=True)
     width = models.PositiveIntegerField(null=True, blank=True)
     height = models.PositiveIntegerField(null=True, blank=True)
     is_image = models.BooleanField(default=False)
@@ -113,70 +115,77 @@ class Attachment(models.Model):
         if not f:
             raise ValidationError("Файл обязателен.")
 
-        try:
-            img = _open_image(f)
-            fmt = (img.format or "").upper()
+        # 1) Пытаемся как изображение
+        img = _open_image(f)
+        if img is not None:
+            fmt = (getattr(img, "format", "") or "").upper()
             if fmt not in ALLOWED_IMAGE_FORMATS:
                 raise ValidationError("Допустимы только JPG, PNG или GIF.")
             self.is_image = True
             self.width, self.height = img.size
             self.content_type = MIME_BY_FORMAT[fmt]
+            self.size = getattr(f, "size", None)
             return
-        except ValidationError:
-            pass
 
+        # 2) Если не изображение — проверяем, что это допустимый текстовый файл
         if _is_text_file(f):
             self.is_image = False
             self.width = self.height = None
             self.content_type = "text/plain; charset=utf-8"
-            self.size = f.size
+            self.size = getattr(f, "size", None)
             return
 
+        # 3) Иначе — отклоняем
         raise ValidationError("Разрешены только изображения (JPG/PNG/GIF) или TXT ≤ 100KB.")
 
     def save(self, *args, **kwargs):
-        """
-        Если файл — изображение: автоповорот по EXIF, масштаб до 320×240, оптимизация.
-        Поля content_type/size/width/height/is_image — заполняются/актуализируются.
-        """
-        if self.file:
-            try:
-                img = _open_image(self.file)
-                fmt = (img.format or "").upper()
-                if fmt not in ALLOWED_IMAGE_FORMATS:
-                    raise ValidationError("Допустимы только JPG, PNG или GIF.")
-                self.is_image = True
+        if not self.file:
+            return super().save(*args, **kwargs)
 
-                img = ImageOps.exif_transpose(img)
-                orig_w, orig_h = img.size
-                if orig_w > MAX_IMAGE_SIZE[0] or orig_h > MAX_IMAGE_SIZE[1]:
-                    img.thumbnail(MAX_IMAGE_SIZE, Image.LANCZOS)
+        self.size = getattr(self.file, "size", None)
+        guessed = mimetypes.guess_type(self.file.name)[0]
+        self.content_type = getattr(self.file, "content_type", None) or guessed or ""
 
-                buf = io.BytesIO()
-                save_kwargs = {}
-                if fmt == "JPEG":
-                    save_kwargs.update(dict(quality=85, optimize=True, progressive=True))
-                # Внимание: анимированный GIF здесь не сохраняем как анимированный.
-                # Если нужно сохранить анимацию — потребуется отдельная логика.
+        img = _open_image(self.file)
 
-                img.save(buf, format=fmt, **save_kwargs)
-                buf.seek(0)
+        if img is None:
+            self.is_image = False
+            self.width = None
+            self.height = None
 
-                base, _ext = os.path.splitext(self.file.name or "upload")
-                ext = ".jpg" if fmt == "JPEG" else f".{fmt.lower()}"
-                new_name = base + ext
-                self.file.save(new_name, ContentFile(buf.read()), save=False)
+            is_txt = (self.content_type == "text/plain") or self.file.name.lower().endswith(".txt")
+            if not is_txt:
+                raise ValidationError("Разрешены только изображения JPG/PNG/GIF или текстовый файл .txt.")
+            if self.size and self.size > MAX_TXT_SIZE:
+                raise ValidationError("Текстовый файл должен быть не больше 100 KB.")
 
-                self.width, self.height = img.size
-                self.size = self.file.size
-                self.content_type = MIME_BY_FORMAT[fmt]
-            except ValidationError:
-                raise
-            except Exception:
-                self.is_image = False
-                self.width = self.height = None
-                self.size = self.file.size
-                if not self.content_type:
-                    self.content_type = "application/octet-stream"
+            return super().save(*args, **kwargs)
 
-        super().save(*args, **kwargs)
+            # ----- ИЗОБРАЖЕНИЕ -----
+        fmt = (getattr(img, "format", "") or "").upper()
+        if fmt not in ALLOWED_IMAGE_FORMATS:
+            raise ValidationError("Допустимы только JPG, PNG или GIF.")
+
+        self.is_image = True
+
+        img = ImageOps.exif_transpose(img)
+        img.thumbnail((320, 240))
+
+        buf = io.BytesIO()
+        save_fmt = "JPEG" if fmt == "JPEG" else fmt
+        save_kwargs = {"optimize": True}
+        if save_fmt == "JPEG":
+            save_kwargs["quality"] = 85
+        img.save(buf, format=save_fmt, **save_kwargs)
+        buf.seek(0)
+
+        # Перезаписываем файл оптимизированной версией
+        base = self.file.name.rsplit(".", 1)[0]
+        ext = {"JPEG": "jpg", "PNG": "png", "GIF": "gif"}[save_fmt]
+        self.file.save(f"{base}.{ext}", ContentFile(buf.read()), save=False)
+
+        self.width, self.height = img.size
+        self.content_type = {"JPEG": "image/jpeg", "PNG": "image/png", "GIF": "image/gif"}[save_fmt]
+        self.size = self.file.size
+
+        return super().save(*args, **kwargs)
