@@ -6,8 +6,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from django.db.models import Count, Prefetch
+from django.db.models import Count
 from django.core.exceptions import ValidationError
 
 from .models import Comment, Attachment
@@ -109,8 +108,5 @@ def captcha_image(request):
     resp['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     resp['Pragma'] = 'no-cache'
     resp['Expires'] = '0'
-    # если фронт на другом домене и нужны куки:
-    # resp.set_cookie('captcha_key', key, max_age=300, samesite='None', secure=True)
-    # если тот же домен:
     resp.set_cookie('captcha_key', key, max_age=300, path='/',)
     return resp

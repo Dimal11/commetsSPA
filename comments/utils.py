@@ -55,7 +55,6 @@ def _rand_code(n=5):
     return ''.join(random.choice(ABC) for _ in range(n))
 
 def make_captcha(ttl=300):
-    """Генерируем КОД → кладём В КЭШ ХЭШ(LOWER) → рисуем этот же КОД."""
     code = _rand_code(5)
     key  = secrets.token_urlsafe(16)
     cache.set(f'captcha:{key}', H(code.lower()), ttl)
@@ -74,7 +73,6 @@ def make_captcha(ttl=300):
     return key, b64
 
 def verify_captcha(key: str | None, code: str | None) -> bool:
-    """Снимаем одноразово и сравниваем с хэшами lower/оригинала и «сырым» кодом."""
     if not key or not code:
         return False
     raw  = code.strip()

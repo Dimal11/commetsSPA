@@ -193,7 +193,7 @@ class Mutation:
         #     print(f"[CAPTCHA DEBUG] match_hash={stored == hashlib.sha256(norm.encode()).hexdigest()}")
         #     print(f"[CAPTCHA DEBUG] match_raw ={stored == norm}")
         #
-        # breakpoint()  # ← здесь выполнение остановится в терминале
+        # breakpoint()
         if not verify_captcha(key, input.captcha):
             raise Exception("Captcha invalid or expired")
 

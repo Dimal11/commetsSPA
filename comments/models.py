@@ -41,13 +41,12 @@ def _is_text_file(file, max_bytes=100 * 1024) -> bool:
         file.seek(pos)
 
 def _open_image(file):
-    """Попробовать открыть как изображение. Вернуть PIL.Image или None."""
     pos = file.tell()
     try:
         img = Image.open(file)
-        img.verify()     # проверка сигнатуры
+        img.verify()
         file.seek(pos)
-        return Image.open(file)  # повторно открыть для работы
+        return Image.open(file)
     except Exception:
         file.seek(pos)
         return None
@@ -115,7 +114,6 @@ class Attachment(models.Model):
         if not f:
             raise ValidationError("Файл обязателен.")
 
-        # 1) Пытаемся как изображение
         img = _open_image(f)
         if img is not None:
             fmt = (getattr(img, "format", "") or "").upper()
@@ -127,7 +125,6 @@ class Attachment(models.Model):
             self.size = getattr(f, "size", None)
             return
 
-        # 2) Если не изображение — проверяем, что это допустимый текстовый файл
         if _is_text_file(f):
             self.is_image = False
             self.width = self.height = None
@@ -135,7 +132,6 @@ class Attachment(models.Model):
             self.size = getattr(f, "size", None)
             return
 
-        # 3) Иначе — отклоняем
         raise ValidationError("Разрешены только изображения (JPG/PNG/GIF) или TXT ≤ 100KB.")
 
     def save(self, *args, **kwargs):
@@ -161,7 +157,6 @@ class Attachment(models.Model):
 
             return super().save(*args, **kwargs)
 
-            # ----- ИЗОБРАЖЕНИЕ -----
         fmt = (getattr(img, "format", "") or "").upper()
         if fmt not in ALLOWED_IMAGE_FORMATS:
             raise ValidationError("Допустимы только JPG, PNG или GIF.")
@@ -179,7 +174,6 @@ class Attachment(models.Model):
         img.save(buf, format=save_fmt, **save_kwargs)
         buf.seek(0)
 
-        # Перезаписываем файл оптимизированной версией
         base = self.file.name.rsplit(".", 1)[0]
         ext = {"JPEG": "jpg", "PNG": "png", "GIF": "gif"}[save_fmt]
         self.file.save(f"{base}.{ext}", ContentFile(buf.read()), save=False)

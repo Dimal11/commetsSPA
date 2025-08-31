@@ -1,5 +1,5 @@
-import { ApolloClient, InMemoryCache, split /*, HttpLink*/ } from '@apollo/client/core'
-import { createUploadLink } from 'apollo-upload-client'           // ⬅️ ТАК, а не subpath
+import { ApolloClient, InMemoryCache, split } from '@apollo/client/core'
+import { createUploadLink } from 'apollo-upload-client'
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
 import { createClient } from 'graphql-ws'
 import { getMainDefinition } from '@apollo/client/utilities'
@@ -9,7 +9,7 @@ const API = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/,'')
 const httpUri = API ? `${API}/graphql/` : '/graphql'
 const httpLink = createUploadLink({
   uri: httpUri,
-  fetchOptions: { credentials: 'include' },     // куки поедут
+  fetchOptions: { credentials: 'include' },
 })
 
 const wsUrl = API.startsWith('https')

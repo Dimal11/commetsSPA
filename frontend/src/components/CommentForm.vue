@@ -81,7 +81,7 @@ const fileError = ref('')
 const previewUrl = ref('')
 
 const capSeed = ref(Date.now())
-const API = (import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000').replace(/\/$/,'')
+const API = (window.__APP_CONFIG__?.API_BASE_URL ?? import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/,'')
 const captchaSrc = ref('')
 const captchaKey = ref('') // ← сюда положим ключ из cookie
 function readCaptchaKeyFromCookie () {
@@ -185,7 +185,6 @@ async function onSubmit(){
   if (err.value) return
   loading.value = true
   try {
-    // 1) Создаём комментарий через GraphQL
     const { data } = await mutateCreate({
       input: {
         userName: form.value.name,
@@ -199,11 +198,9 @@ async function onSubmit(){
     })
     const created = data?.createComment
     if (!created?.id) throw new Error('Не удалось создать комментарий')
-    // 2) Если выбран файл — отправляем через REST
     if (file.value) {
       await uploadAttachmentREST(created.id, file.value)
     }
-    // 3) Готово
     emit('created')
     form.value = { name:'', email:'', homePage:'', text:'', captcha:'' }; clearFile(); preview.value=false
     refreshCaptcha()

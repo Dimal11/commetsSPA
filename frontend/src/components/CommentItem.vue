@@ -83,7 +83,6 @@ function safeHtml(raw){
   walk(div); return div.innerHTML
 }
 
-// Replies via GraphQL (load on demand)
 const { result: repliesRes, loading: repliesLoadingRaw, error: repliesErr, refetch: refetchReplies } = useQuery(
   COMMENTS_QUERY,
   () => ({

@@ -1,7 +1,5 @@
-// src/graphql/operations.js
 import { gql } from '@apollo/client/core';
 
-// Список комментариев (и для верхнего уровня, и для ответов — через parentId)
 export const COMMENTS_QUERY = gql`
   query Comments(
     $page: Int!
@@ -45,7 +43,6 @@ export const COMMENTS_QUERY = gql`
   }
 `;
 
-// Создание комментария (верхний уровень и ответы — один и тот же input)
 export const CREATE_COMMENT_MUTATION = gql`
   mutation Create($input: CreateCommentInput!) {
     createComment(input: $input) {
