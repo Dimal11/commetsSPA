@@ -5,8 +5,8 @@ export PORT="${PORT:-8080}"
 
 python manage.py collectstatic --noinput || true
 
-if [ "${MIGRATE_ON_START:-1}" = "1" ]; then
-  python manage.py migrate --noinput
+if [ "${MIGRATE_ON_START:-0}" = "1" ]; then
+  python manage.py migrate --noinput || echo "Migrations failed; starting anyway"
 fi
 
 exec gunicorn core.wsgi:application \
@@ -15,4 +15,4 @@ exec gunicorn core.wsgi:application \
   --threads ${GTHREADS:-4} \
   --access-logfile - \
   --error-logfile - \
-  --timeout 0
+  --timeout "${GUNICORN_TIMEOUT:-120}"
