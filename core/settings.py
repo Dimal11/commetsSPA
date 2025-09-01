@@ -28,9 +28,12 @@ DEBUG = os.getenv("DEBUG", "0") in ("1", "true", "True")
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
+
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+
 SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
 
 # Application definition
