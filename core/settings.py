@@ -174,19 +174,49 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / "staticfiles"   # collectstatic кладёт сюда
+# --- STATIC ---
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
-    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
 }
 
-GCS_BUCKET = os.getenv("GCS_BUCKET", "")
-if GCS_BUCKET:
+# --- MEDIA / STORAGE ---
+MEDIA_URL_DEFAULT = "/media/"
+MEDIA_ROOT_DEFAULT = BASE_DIR / "media"
+
+USE_GCS_MEDIA = os.getenv("USE_GCS_MEDIA", "1") == "1"
+GS_BUCKET_NAME = os.getenv("GS_BUCKET_NAME") or os.getenv("GCS_BUCKET") or ""
+
+if USE_GCS_MEDIA and GS_BUCKET_NAME:
+    INSTALLED_APPS += ["storages"]
+
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
+        "OPTIONS": {
+            "bucket_name": GS_BUCKET_NAME,
+            **({"location": os.getenv("GS_LOCATION")} if os.getenv("GS_LOCATION") else {}),
+        },
+    }
+
     DEFAULT_FILE_STORAGE = "storages.backends.gcloud.GoogleCloudStorage"
-    GS_BUCKET_NAME = GCS_BUCKET
+
+    GS_QUERYSTRING_AUTH = os.getenv("GS_QUERYSTRING_AUTH", "0") == "1"
+    GS_DEFAULT_ACL = None
+
+    MEDIA_URL = os.getenv("MEDIA_URL", f"https://storage.googleapis.com/{GS_BUCKET_NAME}/")
 else:
-    MEDIA_URL = "/media/"
-    MEDIA_ROOT = BASE_DIR / "media"
+    MEDIA_URL = os.getenv("MEDIA_URL", MEDIA_URL_DEFAULT)
+    MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", MEDIA_ROOT_DEFAULT))
+    STORAGES["default"] = {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "OPTIONS": {
+            "location": MEDIA_ROOT,
+            "base_url": MEDIA_URL,
+        },
+    }
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
