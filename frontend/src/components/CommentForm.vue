@@ -83,7 +83,7 @@ const previewUrl = ref('')
 const capSeed = ref(Date.now())
 const API = (window.__APP_CONFIG__?.API_BASE_URL ?? import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/,'')
 const captchaSrc = ref('')
-const captchaKey = ref('') // ← сюда положим ключ из cookie
+const captchaKey = ref('')
 function readCaptchaKeyFromCookie () {
   try {
     const m = document.cookie.match(/(?:^|;\s*)captcha_key=([^;]+)/)
