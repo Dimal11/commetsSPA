@@ -80,23 +80,41 @@ const fileInfo = ref('')
 const fileError = ref('')
 const previewUrl = ref('')
 
-const capSeed = ref(Date.now())
 const API = (window.__APP_CONFIG__?.API_BASE_URL ?? import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/,'')
 const captchaSrc = ref('')
+
 const captchaKey = ref('')
-function readCaptchaKeyFromCookie () {
+let _captchaBlobUrl = ''
+
+async function loadCaptcha () {
   try {
-    const m = document.cookie.match(/(?:^|;\s*)captcha_key=([^;]+)/)
-    captchaKey.value = m ? decodeURIComponent(m[1]) : ''
-  } catch { captchaKey.value = '' }
-}
+    const path = props.captchaImagePath.startsWith('/')
+      ? props.captchaImagePath
+      : '/' + props.captchaImagePath
 
-function loadCaptcha () {
-  const base = ''
-  const path = props.captchaImagePath.startsWith('/') ? props.captchaImagePath : '/' + props.captchaImagePath
-  captchaSrc.value = `${base}${path}${path.endsWith('/') ? '' : '/'}?_=${Date.now()}`
+    const url = `${API}${path}${path.endsWith('/') ? '' : '/'}?_=${Date.now()}`
 
-  setTimeout(readCaptchaKeyFromCookie, 50)
+    const res = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'omit',
+    })
+
+    captchaKey.value =
+      res.headers.get('X-Captcha-Key') ||
+      res.headers.get('x-captcha-key') ||
+      ''
+
+    const blob = await res.blob()
+
+    if (_captchaBlobUrl) URL.revokeObjectURL(_captchaBlobUrl)
+    _captchaBlobUrl = URL.createObjectURL(blob)
+    captchaSrc.value = _captchaBlobUrl
+  } catch (e) {
+    console.error('Failed to load captcha', e)
+    captchaKey.value = ''
+    captchaSrc.value = ''
+  }
 }
 
 function refreshCaptcha(){ loadCaptcha() }
@@ -219,11 +237,12 @@ async function onSubmit(){
   align-items: center;
 }
 
-.captcha-img {
-  height: 64px;
-  width: auto;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  cursor: pointer;
+.captcha-img{
+  height:64px;
+  width:180px;
+  border:1px solid var(--border);
+  border-radius:6px;
+  cursor:pointer;
+  display:block;
 }
 </style>
