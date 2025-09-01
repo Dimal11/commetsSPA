@@ -6,15 +6,15 @@ import { getMainDefinition } from '@apollo/client/utilities'
 
 const API = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/,'')
 
-const httpUri = API ? `${API}/graphql/` : '/graphql'
+const httpUri = API ? `${API}/graphql/` : '/graphql/'
 const httpLink = createUploadLink({
   uri: httpUri,
   fetchOptions: { credentials: 'include' },
 })
 
 const wsUrl = API.startsWith('https')
-  ? API.replace(/^https?/, 'wss') + '/graphql'
-  : API.replace(/^http/, 'ws') + '/graphql'
+  ? API.replace(/^https?/, 'wss') + '/graphql/'
+  : API.replace(/^http/, 'ws') + '/graphql/'
 const wsLink = new GraphQLWsLink(createClient({ url: wsUrl }))
 
 const link = new HttpLink({
