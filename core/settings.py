@@ -29,7 +29,9 @@ ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = "None"
+SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
 
 # Application definition
 
@@ -96,8 +98,6 @@ CSRF_TRUSTED_ORIGINS = [
         "http://localhost:5173,http://127.0.0.1:5173,https://commets-frontend-755819237934.europe-central2.run.app")
     .split(",") if o.strip())
 ]
-
-
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
