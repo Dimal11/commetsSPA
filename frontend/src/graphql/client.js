@@ -7,7 +7,6 @@ const graphqlURL = window.__CONFIG__?.GRAPHQL_URL || (backendBase ? `${backendBa
 
 const link = createUploadLink({
   uri: graphqlURL,
-  credentials: 'include',
   fetchOptions: { credentials: 'include' },
 });
 
