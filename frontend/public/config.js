@@ -1,4 +1,4 @@
-window.__APP_CONFIG__ = {
-  API_BASE: '/api',
-  WS_BASE: '',
+window.__CONFIG__ = {
+  API_BASE: "https://comments-backend-755819237934.europe-central2.run.app/api",
+  GRAPHQL_URL: "https://comments-backend-755819237934.europe-central2.run.app/graphql"
 };

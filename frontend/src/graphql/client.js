@@ -1,4 +1,4 @@
-import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client/core'
+import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client/core'
 import { createUploadLink } from 'apollo-upload-client'
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
 import { createClient } from 'graphql-ws'
@@ -17,12 +17,19 @@ const wsUrl = API.startsWith('https')
   : API.replace(/^http/, 'ws') + '/graphql/'
 const wsLink = new GraphQLWsLink(createClient({ url: wsUrl }))
 
-const link = new HttpLink({
-  uri: '/graphql/',
-  fetchOptions: { credentials: 'include' },
+const backendBase = window.__CONFIG__?.API_BASE || import.meta.env.VITE_API_BASE_URL || '';
+
+const graphqlURL = window.__CONFIG__?.GRAPHQL_URL
+  || (backendBase ? `${backendBase.replace(/\/$/, '')}/graphql` : '')
+  || 'http://127.0.0.1:8000/graphql';
+
+const link = createHttpLink({
+  uri: graphqlURL.replace(/\/$/, ''),
+  credentials: 'include',
 });
 
-export const apolloClient = new ApolloClient({
+export default new ApolloClient({
   link,
   cache: new InMemoryCache(),
-})
+  connectToDevTools: true,
+});
