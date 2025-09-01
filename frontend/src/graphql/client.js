@@ -1,7 +1,7 @@
 import { ApolloClient, InMemoryCache } from '@apollo/client/core';
 import { createUploadLink } from 'apollo-upload-client';
 
-const backendBase = ((window.__CONFIG__?.API_BASE || import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+const backendBase = ((window.__CONFIG__?.API_BASE || import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''))
 
 const graphqlURL = window.__CONFIG__?.GRAPHQL_URL || (backendBase ? `${backendBase}/graphql/` : '/graphql/')
 
