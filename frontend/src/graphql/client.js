@@ -1,4 +1,4 @@
-import { ApolloClient, InMemoryCache, split, HttpLink } from '@apollo/client/core'
+import { ApolloClient, InMemoryCache, split } from '@apollo/client/core'
 import { createUploadLink } from 'apollo-upload-client'
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
 import { createClient } from 'graphql-ws'
@@ -18,7 +18,7 @@ const wsUrl = API.startsWith('https')
 const wsLink = new GraphQLWsLink(createClient({ url: wsUrl }))
 
 const link = new HttpLink({
-  uri: '/graphql',
+  uri: '/graphql/',
   fetchOptions: { credentials: 'include' },
 });
 
