@@ -82,43 +82,20 @@ const previewUrl = ref('')
 
 const API = (window.__APP_CONFIG__?.API_BASE_URL ?? import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/,'')
 const captchaSrc = ref('')
+const captchaKey = ref(null)
 
-const captchaKey = ref('')
-let _captchaBlobUrl = ''
+function buildCaptchaUrl () {
+  const path = (props.captchaImagePath?.startsWith('/') ? props.captchaImagePath : `/${props.captchaImagePath}`)
+    .replace(/\/?$/, '/')
+  return `${path}?_=${Date.now()}`
+}
 
-async function loadCaptcha () {
-  try {
-    const path = props.captchaImagePath.startsWith('/')
-      ? props.captchaImagePath
-      : '/' + props.captchaImagePath
-
-    const url = `${API}${path}${path.endsWith('/') ? '' : '/'}?_=${Date.now()}`
-
-    const res = await fetch(url, {
-      method: 'GET',
-      cache: 'no-store',
-      credentials: 'omit',
-    })
-
-    captchaKey.value =
-      res.headers.get('X-Captcha-Key') ||
-      res.headers.get('x-captcha-key') ||
-      ''
-
-    const blob = await res.blob()
-
-    if (_captchaBlobUrl) URL.revokeObjectURL(_captchaBlobUrl)
-    _captchaBlobUrl = URL.createObjectURL(blob)
-    captchaSrc.value = _captchaBlobUrl
-  } catch (e) {
-    console.error('Failed to load captcha', e)
-    captchaKey.value = ''
-    captchaSrc.value = ''
-  }
+function loadCaptcha () {
+  captchaSrc.value = buildCaptchaUrl()
 }
 
 function refreshCaptcha(){ loadCaptcha() }
-onMounted(() => { loadCaptcha() })
+onMounted(loadCaptcha)
 
 const { mutate: mutateCreate } = useMutation(CREATE_COMMENT_MUTATION)
 
