@@ -82,6 +82,7 @@ TEMPLATES = [
     },
 ]
 
+CORS_EXPOSE_HEADERS = ["X-Captcha-Key"]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     *(o.strip() for o in os.getenv(
