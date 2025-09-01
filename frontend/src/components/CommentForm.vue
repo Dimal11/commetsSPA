@@ -42,7 +42,7 @@
     <div class="section">
       <label>CAPTCHA *</label>
       <div class="uploader">
-        <img :src="captchaSrc" @click="refreshCaptcha" style="height:40px;border:1px solid var(--border);border-radius:6px;cursor:pointer" />
+        <img :src="captchaSrc" @click="refreshCaptcha" style="height:48px;width=140px;border:1px solid var(--border);border-radius:6px;cursor:pointer" />
         <input class="input" v-model.trim="form.captcha" placeholder="Код с картинки" required style="max-width:260px" />
       </div>
       <p class="hint">Кликните на капчу, чтобы обновить</p>
