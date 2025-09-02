@@ -206,3 +206,20 @@ async function onSubmit(){
   }
 }
 </script>
+
+<style scoped>
+.uploader {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.captcha-img{
+  height:64px;
+  width:180px;
+  border:1px solid var(--border);
+  border-radius:6px;
+  cursor:pointer;
+  display:block;
+}
+</style>
