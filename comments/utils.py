@@ -2,11 +2,14 @@ import bleach
 import io, base64, secrets, string, random, hashlib, logging
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from django.core.cache import cache
+from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 
 log = logging.getLogger("captcha")
 
 ABC = string.ascii_letters + string.digits
 H = lambda s: hashlib.sha256(s.encode('utf-8')).hexdigest()
+_SIGNER = TimestampSigner(salt="comments.captcha")
+_TTL = 300
 
 ALLOWED_TAGS = ["a", "code", "i", "strong"]
 ALLOWED_ATTRS = {"a": ["href", "title"]}
@@ -54,11 +57,12 @@ def sanitize_comment_html(raw: str) -> str:
 def _rand_code(n=5):
     return ''.join(random.choice(ABC) for _ in range(n))
 
-def make_captcha(ttl=300):
-    """Генерируем КОД → кладём В КЭШ ХЭШ(LOWER) → рисуем этот же КОД."""
+def make_captcha(ttl=_TTL):
     code = _rand_code(5)
     key  = secrets.token_urlsafe(16)
-    cache.set(f'captcha:{key}', H(code.lower()), ttl)
+    value = H(code.lower())
+    cache.set(f'captcha:{key}', value, ttl)
+    token = _SIGNER.sign(value)
 
     img = Image.new('RGB', (120, 40), '#f3f4f6')
     d = ImageDraw.Draw(img)
@@ -71,16 +75,20 @@ def make_captcha(ttl=300):
 
     buf = io.BytesIO(); img.save(buf, format='PNG', optimize=True)
     b64 = 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
-    return key, b64
+    return token, b64
 
-def verify_captcha(key: str | None, code: str | None) -> bool:
-    """Снимаем одноразово и сравниваем с хэшами lower/оригинала и «сырым» кодом."""
-    if not key or not code:
+def verify_captcha(key_or_token: str | None, code: str | None, max_age=_TTL) -> bool:
+    if not key_or_token or not code:
         return False
     raw  = code.strip()
     low  = raw.lower()
-    stored = cache.get(f'captcha:{key}')
-    cache.delete(f'captcha:{key}')
+    try:
+        stored_h = _SIGNER.unsign(key_or_token, max_age=max_age)
+        return stored_h in (H(low), H(raw), low, raw)
+    except (BadSignature, SignatureExpired):
+        pass
+    stored = cache.get(f'captcha:{key_or_token}')
+    cache.delete(f'captcha:{key_or_token}')
     if not stored:
         return False
     return stored in (H(low), H(raw), low, raw)

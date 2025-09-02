@@ -6,20 +6,23 @@ from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from django.db.models import Count, Prefetch
+from django.db.models import Count
 from django.core.exceptions import ValidationError
+from django.conf import settings
 
 from .models import Comment, Attachment
 from .serializers import CommentCreateSerializer
 from .utils import make_captcha
 
+
 class CommentPagination(PageNumberPagination):
     page_size = 25
+
 
 class CommentCreateView(generics.CreateAPIView):
     serializer_class = CommentCreateSerializer
     permission_classes = [permissions.AllowAny]
+
 
 SORT_MAP = {
     "user_name": "user_name",
@@ -29,6 +32,7 @@ SORT_MAP = {
     "created_at": "created_at",
     "-created_at": "-created_at",
 }
+
 
 @api_view(["GET"])
 def top_comments_list(request):
@@ -58,6 +62,7 @@ def top_comments_list(request):
         for c in page
     ]
     return paginator.get_paginated_response(data)
+
 
 @csrf_exempt
 def upload_attachment_view(request):
@@ -97,9 +102,11 @@ def upload_attachment_view(request):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
+
 def captcha_json(request):
     key, img_b64 = make_captcha()
     return JsonResponse({'image_base64': img_b64, 'key': key})
+
 
 def captcha_image(request):
     key, img_b64 = make_captcha()
@@ -109,8 +116,12 @@ def captcha_image(request):
     resp['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     resp['Pragma'] = 'no-cache'
     resp['Expires'] = '0'
-    # если фронт на другом домене и нужны куки:
-    # resp.set_cookie('captcha_key', key, max_age=300, samesite='None', secure=True)
-    # если тот же домен:
-    resp.set_cookie('captcha_key', key, max_age=300, path='/',)
+    resp.set_cookie(
+        'captcha_key', key,
+        max_age=300,
+        path='/',
+        httponly=True,
+        samesite='Lax',
+        secure=not settings.DEBUG,
+    )
     return resp
